@@ -1,6 +1,6 @@
 import os
 import matplotlib.pyplot as plt
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 import math
 import datetime
 from dataclasses import dataclass
@@ -51,54 +51,12 @@ Verfahrenscodes:
 
 auftrag_map = dict()
 
+class AnalytResult:
 
-@dataclass(frozen=True)
-class Einsender:
-    name: str
-    station: str
-    adresse: str
-    ort: str
-    telefon: str
-
-
-@dataclass(frozen=True)
-class Patient:
-    vorname: str
-    nachname: str
-    geburtsdatum: str  # Format %d.%m.%Y
-    geschlecht: str
-
-    @property
-    def pat_anzeige(self):
-        if self.geschlecht == 'F':
-            return 'Patientin'
-        return 'Patient'
-
-    @property
-    def alter(self) -> int:
-        now = datetime.datetime.now()
-        geb_dat_dt = datetime.datetime.strptime(self.geburtsdatum, '%d.%m.%Y')
-        delta = now - geb_dat_dt
-        return int(delta.days / 365.25)
-
-
-@dataclass(frozen=True)
-class AnalytIdentifikation:
-    verf_liquor: str
-    verf_serum: str
-    code_liquor: str
-    code_serum: str
-
-
-class AnalytErgebnis:
-
-    def __init__(self, bezeichnung: str, identifikation: AnalytIdentifikation):
-        self.bezeichnung = bezeichnung
-        self.identifikation = identifikation
-        self.wert_liquor = None
-        self.liquor_einheit = ''
-        self.wert_serum = None
-        self.serum_einheit = ''
+    def __init__(self, name: str, value_serum: float, value_csf: float):
+        self.name = name
+        self.value_csf = value_csf
+        self.value_serum = value_serum
         self.quotient: float = 0.0
         self.synthese_pct = 0.0  # Fraktion intrathekale Synthese
         self.bild_datei = ''
@@ -106,25 +64,6 @@ class AnalytErgebnis:
     @property
     def quotient_string(self):
         return f'{self.quotient:.2f}'
-
-    @property
-    def liquor_ergebnis_tabelle(self) -> str:
-        if not self.ergebnis_ist_vorhanden():
-            return ''
-        return f'{float(self.wert_liquor):.1f} {self.liquor_einheit}'
-
-    @property
-    def serum_ergebnis_tabelle(self) -> str:
-        if not self.ergebnis_ist_vorhanden():
-            return ''
-        return f'{float(self.wert_serum):.1f} {self.serum_einheit}'
-
-    @property
-    def quotient_ergebnis_tabelle(self):
-        if not self.ergebnis_ist_vorhanden():
-            return ''
-        quotient = self.quotient * 1000
-        return f'{quotient:.1f}'
 
     @property
     def synthese_anzeige(self):
@@ -135,11 +74,75 @@ class AnalytErgebnis:
         return f'{self.synthese_pct*100:.1f}%'
 
     def ergebnis_ist_vorhanden(self) -> bool:
-        return self.wert_liquor is not None
+        return self.value_csf is not None
 
     def berechne_quotient(self):
-        if self.wert_liquor and self.wert_serum:
-            self.quotient = float(self.wert_liquor) / float(self.wert_serum)
+        if self.value_csf and self.value_serum:
+            self.quotient = float(self.value_csf) / float(self.value_serum)
+
+
+@dataclass(frozen=True)
+class PatientData:
+    birth_date_iso: str
+    albumin_serum: float
+    albumin_csf: float
+    igg_serum: Optional[float] = None
+    igg_csf: Optional[float] = None
+    iga_serum: Optional[float] = None
+    iga_csf: Optional[float] = None
+    igm_serum: Optional[float] = None
+    igm_csf: Optional[float] = None
+
+    @staticmethod
+    def _only_one_value_exists(val1: Optional[float], val2: Optional[float]) -> bool:
+        if val1 and not val2:
+            return True
+        if not val1 and val2:
+            return True
+        return False
+
+    def is_valid(self) -> bool:
+        if self._only_one_value_exists(self.igg_serum, self.igg_csf):
+            return False
+        elif self._only_one_value_exists(self.iga_serum, self.iga_csf):
+            return False
+        elif self._only_one_value_exists(self.igm_serum, self.igm_csf):
+            return False
+        return True
+
+    @property
+    def birth_date(self) -> datetime.datetime:
+        return datetime.datetime.strptime(self.birth_date_iso, "%Y-%m-%d")
+
+    @property
+    def age(self) -> int:
+        now = datetime.datetime.now()
+        delta = now - self.birth_date
+        return int(delta.days / 365.25)
+
+    def albumin_result(self) -> AnalytResult:
+        return AnalytResult('Albumin', value_serum=self.albumin_serum, value_csf=self.albumin_csf)
+
+    def to_result_list(self) -> list[AnalytResult]:
+        result_list = []
+        if self.iga_serum:
+            result_list.append(AnalytResult('IgA', value_serum=self.iga_serum, value_csf=self.iga_csf))
+        if self.igg_serum:
+            result_list.append(AnalytResult('IgG', value_serum=self.igg_serum, value_csf=self.igg_csf))
+        if self.igm_serum:
+            result_list.append(AnalytResult('IgM', value_serum=self.igm_serum, value_csf=self.igm_csf))
+        return result_list
+
+
+@dataclass(frozen=True)
+class AnalytIdentifikation:
+    verf_liquor: str
+    verf_serum: str
+    code_liquor: str
+    code_serum: str
+
+
+
 
 
 class Ergebnisse:
@@ -392,33 +395,31 @@ class ImmunglobulineCurves:
         ergebnis.synthese_pct = syn_pct
 
 
-def plot_aufrag_images(auftrag: Auftrag):
+def plot_aufrag_images(data: PatientData, out_file: str):
+    # parameters of the hyperbolic curves:
     immun_globulin_param_map = dict(
-    IgG=CurveParameters('IgG', 0.33, 2, 0.3, 0.93, 6, 1.7),
-    IgA=CurveParameters('IgA', 0.17, 74, 1.3, 0.77, 23, 3.1),
-    IgM=CurveParameters('IgM', 0.04, 442, 0.82, 0.67, 120, 7.1)
+        IgG=CurveParameters('IgG', 0.33, 2, 0.3, 0.93, 6, 1.7),
+        IgA=CurveParameters('IgA', 0.17, 74, 1.3, 0.77, 23, 3.1),
+        IgM=CurveParameters('IgM', 0.04, 442, 0.82, 0.67, 120, 7.1)
     )
 
-    age = auftrag.patient.alter  # QAlb = (4 + Alter(Jahre)/15) × 10–3
-    print("age", age)
-    q_alb = (4 + age/15) * 0.001
+    # determine age-dependent vertical line:
+    q_alb = (4 + data.age/15) * 0.001
 
     y_max = 0.15
 
     # Schleife ueber alle Immunglobuline:
-    for analyt_ergebnis in auftrag.ergebnisse.als_liste():
+    results = data.to_result_list()
+    for analyt_ergebnis in results:
 
-        ig_select = analyt_ergebnis.bezeichnung
+        ig_select = analyt_ergebnis.name
 
         if not analyt_ergebnis.ergebnis_ist_vorhanden():
-            datei_name = f'leer/{ig_select}_leer.svg'
-            print("Datei", datei_name)
-            analyt_ergebnis.bild_datei = datei_name
             continue
 
         igs_curves = ImmunglobulineCurves(immun_globulin_param_map[ig_select])
 
-        igs_curves.setze_synthese_pct_fuer_ergebnis(analyt_ergebnis, auftrag.albumin_ergebnis)
+        igs_curves.setze_synthese_pct_fuer_ergebnis(analyt_ergebnis, data.albumin_result())
         print("synthese", analyt_ergebnis.synthese_pct)
 
         fig = plt.figure()
@@ -480,15 +481,16 @@ def plot_aufrag_images(auftrag: Auftrag):
                    colors='purple',
                    label='vline_multiple - full height')
 
-        #plt.show()
-        datei_name = f'tmp/{auftrag.auftrag_nr}_{ig_select}.svg'
-        analyt_ergebnis.bild_datei = datei_name
-        print("Datei", datei_name)
-        plt.savefig(datei_name, format='svg',  bbox_inches='tight')
+        file_name, file_extension = os.path.splitext(out_file)
+        if file_extension:
+            file_extension = file_extension.replace(".", "")
+        else:
+            file_extension = "svg"
+        plt.savefig(out_file, format=file_extension,  bbox_inches='tight')
 
 
-def create_images_for_file(file_path: str):
-    _create_orders_from_csv()
+def create_images_for_file(file_path: str, out_file: str):
+    _create_orders_from_csv(file_path)
     for auftrag_nr, auftrag in auftrag_map.items():
-        plot_aufrag_images(auftrag)
+        plot_aufrag_images(auftrag, out_file)
 
