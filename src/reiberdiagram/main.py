@@ -6,60 +6,15 @@ import datetime
 from dataclasses import dataclass
 import bisect
 
+from .constants import ImageType, Immunglobulin
+
 base_path_reiberschema = os.path.abspath(os.path.join(os.path.dirname(__file__)))
 
-
-"""
-Quellen für die Formeln:
-
-https://www.horeiber.de/?page_id=306
-
-https://www.horeiber.de/pdf/eins.pdf
-
-Die intrathekale Fraktion, IgIF(%) ist direkt von den
-Prozentlinien der Quotientendiagramme ablesbar (Abb.
-46-2). Die Prozentlinie der Quotientendiagramme in
-Abb. 46-2, z. B. für 20%, wird nach der Formel mit
-(1 – QLim/QIgG) = 0,2 oder QIgG = 1,25 × QLim be-
-rechnet  (eins S.36)
-
-
-Reiber H (1994). The hyperbolic function: a mathematical solution of the protein flux/CSF flow model 
-for blood-CSF barrier function J Neurol Sci 126:243-245.
-
-Reiber H (1994). Flow rate of cerebrospinal fluid (CSF)- a concept common to normal blood-CSF barrier function 
-and to dysfunction in neurological diseases. J Neurol Sci 122:189-203
-"""
-
-"""
-Testdaten aus csv Datei:
-
-20438528|Petzolt|Bernd|08.05.1967|M|C110|Kreisklinikum Siegen GmbH|Station 31 Neurologie|02717051850|57076|SIEGEN|Weidenauerstr. 76||6920438528|21.10.2023|61|6.61|mg/dl|67|49.10|mg/dl|
-20438528|Petzolt|Bernd|08.05.1967|M|C110|Kreisklinikum Siegen GmbH|Station 31 Neurologie|02717051850|57076|SIEGEN|Weidenauerstr. 76||5120438528|21.10.2023|1|1160.00|mg/dl|7|4030.00|mg/dl|
-
-tnr|Nachname|Vorname|Gebdat|Geschlecht|?|Einsender|Station|Tel|PLZ|Ort|Adresse|-|MatNummer|Liste: Code|Ergebnis|Einheit
-
-Verfahrenscodes:
-1 => IGGLS
-7 => BALBN 
-61 => IGGL
-67 => ALBL
-"""
-
-auftrag_map = dict()
 auftrag_list = []
 
 
-class Immunglobulin:
-    IGA = "IgA"
-    IGG = "IgG"
-    IGM = "IgM"
-
-
-class ImageType:
-    PNG = "png"
-    JPG = "jpg"
-    SVG = "svg"
+class InvalidData(Exception):
+    pass
 
 
 class AnalytResult:
@@ -76,14 +31,6 @@ class AnalytResult:
     def quotient_string(self):
         return f'{self.quotient:.2f}'
 
-    @property
-    def synthese_anzeige(self):
-        if not self.ergebnis_ist_vorhanden():
-            return ''
-        if self.synthese_pct == 0:
-            return '0%'
-        return f'{self.synthese_pct*100:.1f}%'
-
     def ergebnis_ist_vorhanden(self) -> bool:
         return self.value_csf is not None
 
@@ -95,7 +42,7 @@ class AnalytResult:
 @dataclass(frozen=True)
 class PatientData:
     """
-    Class holding all necessary informations for creating a Reiber diagram
+    Class holding all necessary information for creating a Reiber diagram
 
     Attributes
     ----------
@@ -171,6 +118,10 @@ class PatientData:
             return False
         return True
 
+    def raise_if_invalid(self):
+        if not self.is_valid():
+            raise InvalidData("Invalid data provided (probably missing serum or csf measurement)")
+
     @property
     def birth_date(self) -> datetime.datetime:
         return datetime.datetime.strptime(self.birth_date_iso, "%Y-%m-%d")
@@ -216,18 +167,11 @@ class AnalytIdentifikation:
     code_serum: str
 
 
-
-
-
-
 def _create_orders_from_csv(file_path: str):
     with open(file_path, 'r') as csv_datei:
         lines = csv_datei.readlines()
         for line in lines:
             auftrag_list.append(PatientData.from_csv_file(line))
-
-    #for auftrag_nr, auftrag in auftrag_map.items():
-    #    auftrag.berechne_delpq()
 
 
 class DiagramDimension:
@@ -238,7 +182,7 @@ class DiagramDimension:
 class CurveParameters:
 
     """
-    Parameter fuer ein bestimmtes Immunoglobulin basierend auf:
+    Parameters for a given Immunoglobulin based on
     Reiber H (1994). Flow rate of cerebrospinal fluid (CSF)- a concept common to normal blood-CSF barrier function
     and to dysfunction in neurological diseases. J Neurol Sci 122:189-203
     """
@@ -256,8 +200,7 @@ class CurveParameters:
 class ImmunglobulineCurves:
 
     """
-    Haelt die Listen aus x und y Werten die im Diagramm fuer die
-    Kurven verwendet werden
+    Holds list of x and y values that are used inside the diagram for the curves
     """
 
     def __init__(self, params: CurveParameters):
@@ -330,6 +273,8 @@ def create_images(data: PatientData, out_file: str, image_type: ImageType):
     image_type : ImageType
                  file extension (see ImageType class)
     """
+    data.raise_if_invalid()
+
     # parameters of the hyperbolic curves:
     immun_globulin_param_map = dict(
         IgG=CurveParameters(Immunglobulin.IGG, 0.33, 2, 0.3, 0.93, 6, 1.7),
@@ -353,19 +298,17 @@ def create_images(data: PatientData, out_file: str, image_type: ImageType):
 
         igs_curves = ImmunglobulineCurves(immun_globulin_param_map[ig_select])
 
-        #igs_curves.setze_synthese_pct_fuer_ergebnis(analyt_ergebnis, data.albumin_result())
-        #print("synthese", analyt_ergebnis.synthese_pct)
-
         fig = plt.figure()
 
         ax = fig.add_subplot(1, 1, 1)
         ax.plot(igs_curves.x, igs_curves.lower, color=(0, 0, 0))
         ax.set_xscale('log')
         ax.set_yscale('log')
-        # Referenzbereich:
+        # Reference section (upper and lower thick curve):
         ax.plot(igs_curves.x, igs_curves.lower, color=(0, 0, 0), linewidth=3)
         ax.plot(igs_curves.x, igs_curves.upper, color=(0, 0, 1), linewidth=3)
-        # Prozentlinien intrathekale Fraktion:
+
+        # Percentage curves intrathekale fraction:
         last_20pct_datapoint = igs_curves.last_visible_20pct_x(y_max)
         last_40pct_datapoint = igs_curves.last_visible_40pct_x(last_20pct_datapoint[1])
         last_60pct_datapoint = igs_curves.last_visible_60pct_x(last_20pct_datapoint[1])
@@ -394,12 +337,11 @@ def create_images(data: PatientData, out_file: str, image_type: ImageType):
         y_labels = [1, 2, 5, 10, 20, 50, '100']
         ax.set_yticklabels(y_labels, weight='bold')
 
-        # Messpunkt markieren:
+        # Highlight measuremtn point:
         if analyt_ergebnis.ergebnis_ist_vorhanden():
-            print(data.albumin_quotient, data.get_ig_quotient(ig_select))
             plt.scatter(data.albumin_quotient, data.get_ig_quotient(ig_select), c='black', marker='D', s=100)
 
-        # Axen:
+        # Axis:
         ax.set_xlim([0.001, 0.1])
         ax.set_ylim([0, y_max])
 
@@ -445,4 +387,3 @@ def create_images_for_file(file_path: str, out_file: str, image_type: ImageType)
     _create_orders_from_csv(file_path)
     for auftrag in auftrag_list:
         create_images(auftrag, out_file, image_type)
-

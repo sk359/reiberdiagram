@@ -2,7 +2,7 @@
 name = "reiberdiagram"
 version = "0.9.0"
 description = ""
-authors = ["sk stephan_knopp@yahoo.de"]
+authors = ["Stephan Knopp <stephan_knopp@yahoo.de>"]
 readme = "README.md"
 packages = [{include = "reiberdiagram", from = "src"}]
 
@@ -10,6 +10,9 @@ packages = [{include = "reiberdiagram", from = "src"}]
 python = "^3.10"
 matplotlib = "^3.10.0"
 
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.4"
 
 [build-system]
 requires = ["poetry-core"]
