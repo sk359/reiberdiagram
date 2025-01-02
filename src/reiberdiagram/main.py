@@ -4,10 +4,7 @@ from typing import List, Tuple, Optional
 import math
 import datetime
 from dataclasses import dataclass
-#from jinja2 import Environment, FileSystemLoader
 import bisect
-#from weasyprint import HTML
-#import pdfkit
 
 base_path_reiberschema = os.path.abspath(os.path.join(os.path.dirname(__file__)))
 
@@ -50,10 +47,24 @@ Verfahrenscodes:
 """
 
 auftrag_map = dict()
+auftrag_list = []
+
+
+class Immunglobulin:
+    IGA = "IgA"
+    IGG = "IgG"
+    IGM = "IgM"
+
+
+class ImageType:
+    PNG = "png"
+    JPG = "jpg"
+    SVG = "svg"
+
 
 class AnalytResult:
 
-    def __init__(self, name: str, value_serum: float, value_csf: float):
+    def __init__(self, name: Immunglobulin, value_serum: float, value_csf: float):
         self.name = name
         self.value_csf = value_csf
         self.value_serum = value_serum
@@ -83,6 +94,31 @@ class AnalytResult:
 
 @dataclass(frozen=True)
 class PatientData:
+    """
+    Class holding all necessary informations for creating a Reiber diagram
+
+    Attributes
+    ----------
+    birth_date_iso : str
+                     String like 2002-09-16
+
+    albumin_serum : float
+                    concentration of Albumin in serum sample
+    albumin_csf : float
+                  concentration of Albumin in CSF sample. Must have same unit as albumin_serum
+    iga_serum : float
+                concentration of IgA in serum sample
+    iga_csf : float
+              concentration of IgA in CSF sample. Must have same unit as iga_serum
+    igg_serum : float
+                concentration of IgG in serum sample
+    igg_csf : float
+              concentration of IgG in CSF sample. Must have same unit as igg_serum
+    igm_serum : float
+                concentration of IgG in serum sample
+    igm_csf : float
+              concentration of IgM in CSF sample. Must have same unit as igm_serum
+    """
     birth_date_iso: str
     albumin_serum: float
     albumin_csf: float
@@ -92,6 +128,31 @@ class PatientData:
     iga_csf: Optional[float] = None
     igm_serum: Optional[float] = None
     igm_csf: Optional[float] = None
+
+    @property
+    def albumin_quotient(self) -> float:
+        return self.albumin_csf / self.albumin_serum
+
+    @property
+    def iga_quotient(self) -> float:
+        return self.iga_csf / self.iga_serum
+
+    @property
+    def igg_quotient(self) -> float:
+        return self.igg_csf / self.igg_serum
+
+    @property
+    def igm_quotient(self) -> float:
+        return self.igm_csf / self.igm_serum
+
+    def get_ig_quotient(self, name: Immunglobulin) -> float:
+        if name == Immunglobulin.IGA:
+            return self.iga_quotient
+        elif name == Immunglobulin.IGG:
+            return self.igg_quotient
+        elif name == Immunglobulin.IGM:
+            return self.igm_quotient
+        return None
 
     @staticmethod
     def _only_one_value_exists(val1: Optional[float], val2: Optional[float]) -> bool:
@@ -126,12 +187,25 @@ class PatientData:
     def to_result_list(self) -> list[AnalytResult]:
         result_list = []
         if self.iga_serum:
-            result_list.append(AnalytResult('IgA', value_serum=self.iga_serum, value_csf=self.iga_csf))
+            result_list.append(AnalytResult(Immunglobulin.IGA, value_serum=self.iga_serum, value_csf=self.iga_csf))
         if self.igg_serum:
-            result_list.append(AnalytResult('IgG', value_serum=self.igg_serum, value_csf=self.igg_csf))
+            result_list.append(AnalytResult(Immunglobulin.IGG, value_serum=self.igg_serum, value_csf=self.igg_csf))
         if self.igm_serum:
-            result_list.append(AnalytResult('IgM', value_serum=self.igm_serum, value_csf=self.igm_csf))
+            result_list.append(AnalytResult(Immunglobulin.IGM, value_serum=self.igm_serum, value_csf=self.igm_csf))
         return result_list
+
+    @classmethod
+    def from_csv_file(cls, line: str) -> 'PatientData':
+        data = line.split(";")
+        iga_serum = float(data[3]) if len(data) > 3 else None
+        iga_csf = float(data[4]) if len(data) > 4 else None
+        igg_serum = float(data[5]) if len(data) > 5 else None
+        igg_csf = float(data[6]) if len(data) > 6 else None
+        igm_serum = float(data[7]) if len(data) > 7 else None
+        igm_csf = float(data[8]) if len(data) > 8 else None
+        return cls(birth_date_iso=data[0], albumin_serum=float(data[1]), albumin_csf=float(data[2]),
+                   iga_serum=iga_serum, iga_csf=iga_csf, igg_serum=igg_serum, igg_csf=igg_csf, igm_serum=igm_serum,
+                   igm_csf=igm_csf)
 
 
 @dataclass(frozen=True)
@@ -145,152 +219,15 @@ class AnalytIdentifikation:
 
 
 
-class Ergebnisse:
-
-    def __init__(self, liste_aus_csv: List[str]):
-        self.albumin = AnalytErgebnis('Albumin', AnalytIdentifikation('ALBL', 'BALBN', '67', '7'))
-        self.igg = AnalytErgebnis('IgG', AnalytIdentifikation('IGGL', 'IGGLS', '61', '1'))
-        self.iga = AnalytErgebnis('IgA', AnalytIdentifikation('IGAL', 'IGALS', '62', '2'))
-        self.igm = AnalytErgebnis('IgM', AnalytIdentifikation('IGML', 'IGMLS', '63', '3'))
-        self.werte_liste_aus(liste_aus_csv)
-
-    def werte_liste_aus(self, liste_aus_csv: List[str]):
-        def setze_wert_und_einheiten(erg: AnalytErgebnis, liquor_identifier_liste, serum_identifier_liste):
-            if bezeichnung in liquor_identifier_liste:
-                erg.wert_liquor = wert
-                erg.liquor_einheit = einheit
-            elif bezeichnung in serum_identifier_liste:
-                erg.wert_serum = wert
-                erg.serum_einheit = einheit
-
-        ergebnisse = [liste_aus_csv[x:x + 100] for x in range(0, len(liste_aus_csv), 3)]
-        for ergebnis in ergebnisse:
-            bezeichnung = ergebnis[0]
-            wert = ergebnis[1]
-            einheit = ergebnis[2]
-
-            setze_wert_und_einheiten(self.albumin, [self.albumin.identifikation.verf_liquor, self.albumin.identifikation.code_liquor],
-                                     [self.albumin.identifikation.verf_serum, self.albumin.identifikation.code_serum])
-            setze_wert_und_einheiten(self.igg, [self.igg.identifikation.verf_liquor, self.igg.identifikation.code_liquor],
-                                     [self.igg.identifikation.verf_serum, self.igg.identifikation.code_serum])
-            setze_wert_und_einheiten(self.iga, [self.iga.identifikation.verf_liquor, self.iga.identifikation.code_liquor],
-                                     [self.iga.identifikation.verf_serum, self.iga.identifikation.code_serum])
-            setze_wert_und_einheiten(self.igm, [self.igm.identifikation.verf_liquor, self.igm.identifikation.code_liquor],
-                                     [self.igm.identifikation.verf_serum, self.igm.identifikation.code_serum])
-
-        self.albumin.berechne_quotient()
-        self.igg.berechne_quotient()
-        self.iga.berechne_quotient()
-        self.igm.berechne_quotient()
-
-    def als_liste(self) -> List[AnalytErgebnis]:
-        return [self.igg, self.iga, self.igm]
-
-
-class Probe:
-
-    def __init__(self, proben_nr, material, datum):
-        self.proben_nr = proben_nr
-        self.material = material
-        self.datum = datum
-
-
-class CsvZeile:
-
-    """
-    #tnr|Nachname|Vorname|Gebdat|Geschlecht|?|Einsender|Station|Tel|PLZ|Ort|Adresse|-|MatNummer|
-    Liste: Code|Ergebnis|Einheit
-    """
-
-    def __init__(self, csv_zeile: str):
-        csv_zeile = csv_zeile.strip()
-        if csv_zeile[-1] == '|':
-            csv_zeile = csv_zeile[:-1]
-        data = csv_zeile.split('|')
-        self.auftrag_nr = data[0]
-        self.pat_nachname = data[1]
-        self.pat_vorname = data[2]
-        self.pat_geburtsdatum = data[3]
-        self.pat_geschlecht = data[4]
-        self.eins_name = data[6]
-        self.eins_station = data[7]
-        self.eins_tel = data[8]
-        self.eins_plz = data[9]
-        self.eins_ort = data[10]
-        self.eins_adre = data[11]
-        self.barcode = data[13]
-        self.proben_datum = data[14]
-        self.ergebnisse = data[15:]
-
-
-class Auftrag:
-
-    def __init__(self, csv_zeile: str):
-        data = CsvZeile(csv_zeile)
-        self.datum_heute = datetime.datetime.now().strftime('%d.%m.%Y')
-        self.auftrag_nr = data.auftrag_nr
-        self.patient = Patient(data.pat_vorname, data.pat_nachname, data.pat_geburtsdatum, data.pat_geschlecht)
-        ort = f'{data.eins_plz} {data.eins_ort}'
-        self.einsender = Einsender(data.eins_name, data.eins_station, data.eins_adre, ort, data.eins_tel)
-        verfahren_liste = data.ergebnisse
-        barcode = data.barcode
-        self.proben: List[Probe] = []  # Barcodes mit Materialindex
-        self.neue_probe(barcode, data.proben_datum)
-        self.ergebnisse: Ergebnisse = Ergebnisse(verfahren_liste)
-        self.delpq: str = '0.0'  # Verfahren DELPQ
-
-    def werte_csv_zeile_aus(self, csv_zeile: str):
-        data = CsvZeile(csv_zeile)
-        self.neue_probe(data.barcode, data.proben_datum)
-        verfahren_liste = data.ergebnisse
-        self.ergebnisse.werte_liste_aus(verfahren_liste)
-
-    def neue_probe(self, barcode: str, datum: str):
-        if barcode.startswith('69'):
-            self.proben.append(Probe(barcode, 'Liquor', datum))
-        elif barcode.startswith('51'):
-            self.proben.append(Probe(barcode, 'Serum', datum))
-
-    def berechne_delpq(self):
-        """
-        Delpech-Lichtblauquotient = Qigg/Qalb
-        Ist der Wert des Delpech-Lichtblau-Quotienten > 0,7 spricht
-        dies für intrathekale IgG-Synthese
-        """
-        delpq = self.ergebnisse.igg.quotient / self.ergebnisse.albumin.quotient
-        print("delpq", delpq)
-        self.delpq = f'{delpq:.2f}'
-
-    @property
-    def albumin_ergebnis(self) -> AnalytErgebnis:
-        return self.ergebnisse.albumin
-
-    @property
-    def igg_datei(self) -> str:
-        return self.ergebnisse.igg.bild_datei
-
-    @property
-    def iga_datei(self) -> str:
-        return self.ergebnisse.iga.bild_datei
-
-    @property
-    def igm_datei(self) -> str:
-        return self.ergebnisse.igm.bild_datei
-
 
 def _create_orders_from_csv(file_path: str):
     with open(file_path, 'r') as csv_datei:
         lines = csv_datei.readlines()
         for line in lines:
-            data = line.split('|')
-            auftrag_nr = data[0]
-            if auftrag_nr in auftrag_map:
-                auftrag_map[auftrag_nr].werte_csv_zeile_aus(line)
-            else:
-                auftrag_map[auftrag_nr] = Auftrag(line)
+            auftrag_list.append(PatientData.from_csv_file(line))
 
-    for auftrag_nr, auftrag in auftrag_map.items():
-        auftrag.berechne_delpq()
+    #for auftrag_nr, auftrag in auftrag_map.items():
+    #    auftrag.berechne_delpq()
 
 
 class DiagramDimension:
@@ -380,27 +317,24 @@ class ImmunglobulineCurves:
     def get_upper_lim_at_coordinate(self, q_albumin: float, factor=1.0) -> float:
         return self.params.ab_upper * math.sqrt(pow(q_albumin*factor, 2) + self.params.b2_upper) - self.params.c_upper
 
-    def setze_synthese_pct_fuer_ergebnis(self, ergebnis: AnalytErgebnis, albumin_ergebnis: AnalytErgebnis):
-        """
-        pct = (Q_igx-Q_lim) / Q_igx
-        :param ergebnis: Ergebnis der IgX Messung
-        :param albumin_ergebnis: Ergebnis der Albumin Messung fuer die Berechnung von Q_lim
-        """
-        if not ergebnis.ergebnis_ist_vorhanden():
-            return
-        q_lim = self.get_upper_lim_at_coordinate(albumin_ergebnis.quotient)
-        syn_pct = (ergebnis.quotient - q_lim) / ergebnis.quotient
-        if syn_pct < 0:
-            syn_pct = 0
-        ergebnis.synthese_pct = syn_pct
 
-
-def plot_aufrag_images(data: PatientData, out_file: str):
+def create_images(data: PatientData, out_file: str, image_type: ImageType):
+    """
+    Parameters
+    ----------
+    data : PatientData
+           object containing all necessary information like age and measurement data
+    out_file : str
+               either an absolute path if only IgG is provided or a template like
+               <dir_path>/<some_name> => <dir_path>/<some_name>_<igx>.<image_type>
+    image_type : ImageType
+                 file extension (see ImageType class)
+    """
     # parameters of the hyperbolic curves:
     immun_globulin_param_map = dict(
-        IgG=CurveParameters('IgG', 0.33, 2, 0.3, 0.93, 6, 1.7),
-        IgA=CurveParameters('IgA', 0.17, 74, 1.3, 0.77, 23, 3.1),
-        IgM=CurveParameters('IgM', 0.04, 442, 0.82, 0.67, 120, 7.1)
+        IgG=CurveParameters(Immunglobulin.IGG, 0.33, 2, 0.3, 0.93, 6, 1.7),
+        IgA=CurveParameters(Immunglobulin.IGA, 0.17, 74, 1.3, 0.77, 23, 3.1),
+        IgM=CurveParameters(Immunglobulin.IGM, 0.04, 442, 0.82, 0.67, 120, 7.1)
     )
 
     # determine age-dependent vertical line:
@@ -419,8 +353,8 @@ def plot_aufrag_images(data: PatientData, out_file: str):
 
         igs_curves = ImmunglobulineCurves(immun_globulin_param_map[ig_select])
 
-        igs_curves.setze_synthese_pct_fuer_ergebnis(analyt_ergebnis, data.albumin_result())
-        print("synthese", analyt_ergebnis.synthese_pct)
+        #igs_curves.setze_synthese_pct_fuer_ergebnis(analyt_ergebnis, data.albumin_result())
+        #print("synthese", analyt_ergebnis.synthese_pct)
 
         fig = plt.figure()
 
@@ -462,7 +396,8 @@ def plot_aufrag_images(data: PatientData, out_file: str):
 
         # Messpunkt markieren:
         if analyt_ergebnis.ergebnis_ist_vorhanden():
-            plt.scatter(auftrag.ergebnisse.albumin.quotient, auftrag.ergebnisse.igg.quotient, c='black', marker='D', s=100)
+            print(data.albumin_quotient, data.get_ig_quotient(ig_select))
+            plt.scatter(data.albumin_quotient, data.get_ig_quotient(ig_select), c='black', marker='D', s=100)
 
         # Axen:
         ax.set_xlim([0.001, 0.1])
@@ -485,12 +420,29 @@ def plot_aufrag_images(data: PatientData, out_file: str):
         if file_extension:
             file_extension = file_extension.replace(".", "")
         else:
-            file_extension = "svg"
+            file_extension = image_type
+            out_file = f"{out_file}_{ig_select}.{file_extension}"
+
         plt.savefig(out_file, format=file_extension,  bbox_inches='tight')
 
 
-def create_images_for_file(file_path: str, out_file: str):
+def create_images_for_file(file_path: str, out_file: str, image_type: ImageType):
+    """
+    Extracts data from a csv file with order of columns (csv file has to use ; as delimiter)
+    birthdate_iso | albumin_serum | albumin_csf | iga_serum | iga_csf | igg_serum | igg_csf | igm_serum | igm_csf
+    Example (just IgG provided):
+    2002-09-18;49.2;1.3;;;1090.1;22.3
+    Parameters
+    ----------
+    file_path : str
+               absolute path to the csv file
+    out_file : str
+               either an absolute path if only IgG is provided or a template like
+               <dir_path>/<some_name> => <dir_path>/<some_name>_<igx>.<image_type>
+    image_type : ImageType
+                 file extension (see ImageType class)
+    """
     _create_orders_from_csv(file_path)
-    for auftrag_nr, auftrag in auftrag_map.items():
-        plot_aufrag_images(auftrag, out_file)
+    for auftrag in auftrag_list:
+        create_images(auftrag, out_file, image_type)
 
