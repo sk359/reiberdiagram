@@ -10,7 +10,7 @@ from constants import ImageType, Immunglobulin
 
 base_path_reiberschema = os.path.abspath(os.path.join(os.path.dirname(__file__)))
 
-auftrag_list = []
+order_list = []
 
 
 class InvalidData(Exception):
@@ -45,6 +45,7 @@ class PatientData:
               concentration of IgM in CSF sample. Must have same unit as igm_serum
     """
     birth_date_iso: str
+    csv_row_id: str
     albumin_serum: float
     albumin_csf: float
     igg_serum: Optional[float] = None
@@ -53,6 +54,9 @@ class PatientData:
     iga_csf: Optional[float] = None
     igm_serum: Optional[float] = None
     igm_csf: Optional[float] = None
+
+    def __repr__(self) -> str:
+        return str(vars(self))
 
     def has_immunoglobulin_result(self, name: Immunglobulin) -> bool:
         if name == Immunglobulin.IGA:
@@ -119,16 +123,24 @@ class PatientData:
         delta = now - self.birth_date
         return int(delta.days / 365.25)
 
+    @staticmethod
+    def string_to_float_or_none(value_list: list[str], index: int) -> Optional[float]:
+        try:
+            float_number = float(value_list[index])
+            return float_number
+        except (ValueError, IndexError):
+            return None
+
     @classmethod
     def from_csv_file(cls, line: str) -> 'PatientData':
         data = line.split(";")
-        iga_serum = float(data[3]) if len(data) > 3 else None
-        iga_csf = float(data[4]) if len(data) > 4 else None
-        igg_serum = float(data[5]) if len(data) > 5 else None
-        igg_csf = float(data[6]) if len(data) > 6 else None
-        igm_serum = float(data[7]) if len(data) > 7 else None
-        igm_csf = float(data[8]) if len(data) > 8 else None
-        return cls(birth_date_iso=data[0], albumin_serum=float(data[1]), albumin_csf=float(data[2]),
+        iga_serum = PatientData.string_to_float_or_none(data, 4)
+        iga_csf = PatientData.string_to_float_or_none(data, 5)
+        igg_serum = PatientData.string_to_float_or_none(data, 6)
+        igg_csf = PatientData.string_to_float_or_none(data, 7)
+        igm_serum = PatientData.string_to_float_or_none(data, 8)
+        igm_csf = PatientData.string_to_float_or_none(data, 9)
+        return cls(csv_row_id=data[0], birth_date_iso=data[1], albumin_serum=float(data[2]), albumin_csf=float(data[3]),
                    iga_serum=iga_serum, iga_csf=iga_csf, igg_serum=igg_serum, igg_csf=igg_csf, igm_serum=igm_serum,
                    igm_csf=igm_csf)
 
@@ -139,13 +151,6 @@ class AnalytIdentifikation:
     verf_serum: str
     code_liquor: str
     code_serum: str
-
-
-def _create_orders_from_csv(file_path: str):
-    with open(file_path, 'r') as csv_datei:
-        lines = csv_datei.readlines()
-        for line in lines:
-            auftrag_list.append(PatientData.from_csv_file(line))
 
 
 class DiagramDimension:
@@ -248,6 +253,7 @@ def create_images(data: PatientData, out_file: str, image_type: ImageType):
                  file extension (see ImageType class)
     """
     data.raise_if_invalid()
+    out_file_new = out_file
 
     # parameters of the hyperbolic curves:
     immun_globulin_param_map = dict(
@@ -333,17 +339,38 @@ def create_images(data: PatientData, out_file: str, image_type: ImageType):
             file_extension = file_extension.replace(".", "")
         else:
             file_extension = image_type
-            out_file = f"{out_file}_{immunglobulin}.{file_extension}"
+            out_file_new = f"{out_file}_{data.csv_row_id}_{immunglobulin}.{file_extension}"
 
-        plt.savefig(out_file, format=file_extension,  bbox_inches='tight')
+        plt.savefig(out_file_new, format=file_extension,  bbox_inches='tight')
+
+
+def _create_orders_from_csv(file_path: str):
+    def is_header_line(csv_line: str) -> bool:
+        # returns True if the seconds column does not hold an isoformat date string
+        cols = line.split(";")
+        try:
+            _ = datetime.datetime.strptime(cols[1], "%Y-%m-%d")
+            return False
+        except Exception:
+            return True
+
+    with open(file_path, 'r') as csv_datei:
+        lines = csv_datei.readlines()
+        for row_count, line in enumerate(lines):
+            if row_count == 0 and is_header_line(line):
+                continue
+            order_list.append(PatientData.from_csv_file(line))
 
 
 def create_images_for_file(file_path: str, out_file: str, image_type: ImageType):
     """
     Extracts data from a csv file with order of columns (csv file has to use ; as delimiter)
-    birthdate_iso | albumin_serum | albumin_csf | iga_serum | iga_csf | igg_serum | igg_csf | igm_serum | igm_csf
+    id | birthdate_iso | albumin_serum | albumin_csf | iga_serum | iga_csf | igg_serum | igg_csf | igm_serum | igm_csf
     Example (just IgG provided):
-    2002-09-18;49.2;1.3;;;1090.1;22.3
+    001;2002-09-18;49.2;1.3;;;1090.1;22.3
+
+    The ID can have any format. A header row can be provided in the csv file but is optional
+
     Parameters
     ----------
     file_path : str
@@ -355,5 +382,5 @@ def create_images_for_file(file_path: str, out_file: str, image_type: ImageType)
                  file extension (see ImageType class)
     """
     _create_orders_from_csv(file_path)
-    for auftrag in auftrag_list:
-        create_images(auftrag, out_file, image_type)
+    for order in order_list:
+        create_images(order, out_file, image_type)
