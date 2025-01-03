@@ -1,3 +1,6 @@
+![Scrutinizer coverage (GitHub/Bitbucket) with branch](https://img.shields.io/scrutinizer/coverage/g/sk359/reiberdiagram/main)
+
+
 # Reiberdiagram
 
 Python module to create an image file for each measured immunoglobulin.
