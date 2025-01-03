@@ -8,15 +8,20 @@ on:
 
 permissions:
    contents: read
-   pages: write
    id-token: write
 
 jobs:
-  build:
+  test:
 
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [ "3.10", "3.12" ]
 
     steps:
+      - name: Display Python version
+        run: python -c "import sys; print(sys.version)"
+
       - name: Check out code
         uses: actions/checkout@v4
 
@@ -29,14 +34,17 @@ jobs:
       - name: Run tests
         run: poetry run pytest --cov=src --cov-report html tests/
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v2
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v1
         with:
              # Upload the coverage directory from the repository
              path: './htmlcov'
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v1
+
+
+  #deploy:
+  #  steps:
+  #    - name: Build
+  #      run: poetry build
+  #    - name: Upload
+  #      run: poetry publish
 
