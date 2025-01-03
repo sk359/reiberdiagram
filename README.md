@@ -18,6 +18,10 @@ pat = PatientData(birth_date_iso="2022-09-13", albumin_serum=1000, albumin_csf=1
 create_images(data=pat, out_file="test", image_type=ImageType.PNG)
 ```
 
+### Example image:
+
+![Example diagram for IgG](/tests/baseline_IgG.png)
+
 [^1]: Reiber H (1994). The hyperbolic function: a mathematical solution of the protein flux/CSF flow model 
 for blood-CSF barrier function J Neurol Sci 126:243-245.
 
