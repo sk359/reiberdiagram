@@ -1,4 +1,4 @@
-![Scrutinizer coverage (GitHub/Bitbucket) with branch](https://img.shields.io/scrutinizer/coverage/g/sk359/reiberdiagram/main)
+![Scrutinizer coverage (GitHub/Bitbucket) with branch](https://img.shields.io/scrutinizer/coverage/g/sk359/reiberdiagram)
 
 
 # Reiberdiagram
