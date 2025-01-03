@@ -25,13 +25,3 @@ class TestPatientDataSuite:
                                igg_serum=200)
         with pytest.raises(InvalidData):
             pat_data.raise_if_invalid()
-
-    def test_to_list(self):
-        pat_data = PatientData(birth_date_iso="2002-01-01", albumin_serum=100, albumin_csf=0.5,
-                               igg_serum=200, igg_csf=2.0,
-                               iga_serum=50, iga_csf=0.1,
-                               igm_serum=1000, igm_csf=0.1)
-
-        result_list = pat_data.to_result_list()
-        assert len(result_list) == 3
-        assert result_list[0].name == Immunglobulin.IGA

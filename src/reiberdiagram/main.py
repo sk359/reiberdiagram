@@ -6,7 +6,7 @@ import datetime
 from dataclasses import dataclass
 import bisect
 
-from .constants import ImageType, Immunglobulin
+from constants import ImageType, Immunglobulin
 
 base_path_reiberschema = os.path.abspath(os.path.join(os.path.dirname(__file__)))
 
@@ -15,28 +15,6 @@ auftrag_list = []
 
 class InvalidData(Exception):
     pass
-
-
-class AnalytResult:
-
-    def __init__(self, name: Immunglobulin, value_serum: float, value_csf: float):
-        self.name = name
-        self.value_csf = value_csf
-        self.value_serum = value_serum
-        self.quotient: float = 0.0
-        self.synthese_pct = 0.0  # Fraktion intrathekale Synthese
-        self.bild_datei = ''
-
-    @property
-    def quotient_string(self):
-        return f'{self.quotient:.2f}'
-
-    def ergebnis_ist_vorhanden(self) -> bool:
-        return self.value_csf is not None
-
-    def berechne_quotient(self):
-        if self.value_csf and self.value_serum:
-            self.quotient = float(self.value_csf) / float(self.value_serum)
 
 
 @dataclass(frozen=True)
@@ -75,6 +53,15 @@ class PatientData:
     iga_csf: Optional[float] = None
     igm_serum: Optional[float] = None
     igm_csf: Optional[float] = None
+
+    def has_immunoglobulin_result(self, name: Immunglobulin) -> bool:
+        if name == Immunglobulin.IGA:
+            return self.iga_serum is not None
+        elif name == Immunglobulin.IGG:
+            return self.igg_serum is not None
+        elif name == Immunglobulin.IGM:
+            return self.igm_serum is not None
+        return False
 
     @property
     def albumin_quotient(self) -> float:
@@ -131,19 +118,6 @@ class PatientData:
         now = datetime.datetime.now()
         delta = now - self.birth_date
         return int(delta.days / 365.25)
-
-    def albumin_result(self) -> AnalytResult:
-        return AnalytResult('Albumin', value_serum=self.albumin_serum, value_csf=self.albumin_csf)
-
-    def to_result_list(self) -> list[AnalytResult]:
-        result_list = []
-        if self.iga_serum:
-            result_list.append(AnalytResult(Immunglobulin.IGA, value_serum=self.iga_serum, value_csf=self.iga_csf))
-        if self.igg_serum:
-            result_list.append(AnalytResult(Immunglobulin.IGG, value_serum=self.igg_serum, value_csf=self.igg_csf))
-        if self.igm_serum:
-            result_list.append(AnalytResult(Immunglobulin.IGM, value_serum=self.igm_serum, value_csf=self.igm_csf))
-        return result_list
 
     @classmethod
     def from_csv_file(cls, line: str) -> 'PatientData':
@@ -287,19 +261,16 @@ def create_images(data: PatientData, out_file: str, image_type: ImageType):
 
     y_max = 0.15
 
-    # Schleife ueber alle Immunglobuline:
-    results = data.to_result_list()
-    for analyt_ergebnis in results:
+    ig_list = [Immunglobulin.IGA, Immunglobulin.IGG, Immunglobulin.IGM]
+    for immunglobulin in ig_list:
 
-        ig_select = analyt_ergebnis.name
-
-        if not analyt_ergebnis.ergebnis_ist_vorhanden():
+        if not data.has_immunoglobulin_result(immunglobulin):
             continue
 
-        igs_curves = ImmunglobulineCurves(immun_globulin_param_map[ig_select])
+        igs_curves = ImmunglobulineCurves(immun_globulin_param_map[immunglobulin])
 
         fig = plt.figure()
-
+        plt.rc('axes', axisbelow=True)
         ax = fig.add_subplot(1, 1, 1)
         ax.plot(igs_curves.x, igs_curves.lower, color=(0, 0, 0))
         ax.set_xscale('log')
@@ -337,9 +308,8 @@ def create_images(data: PatientData, out_file: str, image_type: ImageType):
         y_labels = [1, 2, 5, 10, 20, 50, '100']
         ax.set_yticklabels(y_labels, weight='bold')
 
-        # Highlight measuremtn point:
-        if analyt_ergebnis.ergebnis_ist_vorhanden():
-            plt.scatter(data.albumin_quotient, data.get_ig_quotient(ig_select), c='black', marker='D', s=100)
+        # Highlight measurement point:
+        plt.scatter(data.albumin_quotient, data.get_ig_quotient(immunglobulin), c='black', marker='D', s=100)
 
         # Axis:
         ax.set_xlim([0.001, 0.1])
@@ -363,7 +333,7 @@ def create_images(data: PatientData, out_file: str, image_type: ImageType):
             file_extension = file_extension.replace(".", "")
         else:
             file_extension = image_type
-            out_file = f"{out_file}_{ig_select}.{file_extension}"
+            out_file = f"{out_file}_{immunglobulin}.{file_extension}"
 
         plt.savefig(out_file, format=file_extension,  bbox_inches='tight')
 
