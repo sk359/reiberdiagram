@@ -1,10 +1,11 @@
 [tool.poetry]
 name = "reiberdiagram"
-version = "1.0.1"
+version = "1.0.2"
 description = ""
 authors = ["Stephan Knopp <stephan_knopp@yahoo.de>"]
 readme = "README.md"
 packages = [{include = "reiberdiagram", from = "src"}]
+repository = "https://github.com/sk359/reiberdiagram"
 
 [tool.poetry.dependencies]
 python = "^3.10"
