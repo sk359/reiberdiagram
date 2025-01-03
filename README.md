@@ -1,4 +1,4 @@
-![Scrutinizer coverage (GitHub/Bitbucket) with branch](https://img.shields.io/scrutinizer/coverage/g/sk359/reiberdiagram)
+![Codecov](https://img.shields.io/codecov/c/github/sk359/reiberdiagram)
 
 
 # Reiberdiagram
