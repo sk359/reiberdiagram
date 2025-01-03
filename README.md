@@ -12,6 +12,13 @@ current measurement. The x-axis is the albumin quotient and the y-axis the immun
 
 You can either evaluate a csv file (see example in test folder) or a single patient. Example:
 
+```
+test_csv_file:
+id;dob;alb_serum;alb_csf;iga_serum;iga_csf;igg_serum;igg_csf;igm_serum;igm_csf
+001;2002-09-18;49.2;1.3;;;1090.1;22.3
+002;1976-11-19;49.2;1.3;100.2;13.4;;;345.6;33.1
+```
+
 ```python
 from reiberdiagram import create_images_for_file, ImageType
 create_images_for_file(test_csv_file, out_file=test_file_path, image_type=ImageType.PNG)
