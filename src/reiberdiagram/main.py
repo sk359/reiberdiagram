@@ -26,7 +26,8 @@ class PatientData:
     ----------
     birth_date_iso : str
                      String like 2002-09-16
-
+    csv_row_id : str
+                 will be part of file name, can be any string (no spaces)
     albumin_serum : float
                     concentration of Albumin in serum sample
     albumin_csf : float
@@ -248,7 +249,7 @@ def create_images(data: PatientData, out_file: str, image_type: ImageType):
            object containing all necessary information like age and measurement data
     out_file : str
                either an absolute path if only IgG is provided or a template like
-               <dir_path>/<some_name> => <dir_path>/<some_name>_<igx>.<image_type>
+               <dir_path>/<some_name> => <dir_path>/<some_name>_<row_id>_<igx>.<image_type>
     image_type : ImageType
                  file extension (see ImageType class)
     """

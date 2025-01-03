@@ -31,7 +31,7 @@ create_images_for_file(test_csv_file, out_file=test_file_path, image_type=ImageT
 
 ```python
 from reiberschema import create_images, PatientData, ImageType
-pat = PatientData(birth_date_iso="2022-09-13", albumin_serum=1000, albumin_csf=10, igg_serum=133.5, igg_csf=1.5)
+pat = PatientData(csv_row_id="001", birth_date_iso="2022-09-13", albumin_serum=1000, albumin_csf=10, igg_serum=133.5, igg_csf=1.5)
 create_images(data=pat, out_file="test", image_type=ImageType.PNG)
 ```
 
