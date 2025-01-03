@@ -39,7 +39,8 @@ jobs:
         with:
             name: pytest-results-${{ matrix.python-version }}
             path: junit/test-results-${{ matrix.python-version }}.xml
-
+            retention-days: 1
+        if: ${{ always() }}
 
   #deploy:
   #  steps:
