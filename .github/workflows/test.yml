@@ -17,7 +17,7 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v4
-        
+
       - name: Install dependencies
         run: |
             python -m pip install --upgrade pip
@@ -25,5 +25,16 @@ jobs:
             poetry install --with dev
 
       - name: Run tests
-        run: poetry run pytest --cov=src tests/
+        run: poetry run pytest --cov=src --cov-report html tests/
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v2
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v1
+        with:
+             # Upload the coverage directory from the repository
+             path: './htmlcov'
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v1
 
