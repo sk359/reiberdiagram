@@ -8,6 +8,8 @@ synthesis in the CSF. The diagram consist of two main curves enclosing the norma
 labelled 20%, 40% etc., an age-dependent vertical separation line and a mark that highlights the position of the 
 current measurement. The x-axis is the albumin quotient and the y-axis the immunoglobulin quotient.
 
+Images can be created for IgA, IgG and IgM
+
 ### Usage:
 
 You can either evaluate a csv file (see example in test folder) or a single patient. Example:

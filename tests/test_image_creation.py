@@ -19,7 +19,7 @@ def remove_test_images():
                 file_abs_path = os.path.join(test_dir, file)
                 if file_abs_path == base_file:
                     continue
-                os.remove(file_abs_path)
+                #os.remove(file_abs_path)
     except OSError:
         pass
 
