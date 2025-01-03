@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "reiberdiagram"
-version = "1.0.2"
-description = ""
+version = "1.0.3"
+description = "Package for creating diagrams aiding CSF diagnostics"
 authors = ["Stephan Knopp <stephan_knopp@yahoo.de>"]
 readme = "README.md"
 packages = [{include = "reiberdiagram", from = "src"}]
