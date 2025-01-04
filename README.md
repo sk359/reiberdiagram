@@ -1,6 +1,6 @@
-![Testing](https://github.com/sk359/reiberdiagram/actions/workflows/test.yml/badge.svg)
-
-[![codecov](https://codecov.io/github/sk359/reiberdiagram/graph/badge.svg?token=R0EK47V7XL)](https://codecov.io/github/sk359/reiberdiagram)
+| Tests | Coverage |
+| :----: | :------: | 
+| ![Testing](https://github.com/sk359/reiberdiagram/actions/workflows/test.yml/badge.svg) | [![codecov](https://codecov.io/github/sk359/reiberdiagram/graph/badge.svg?token=R0EK47V7XL)](https://codecov.io/github/sk359/reiberdiagram) |
 
 
 # Reiberdiagram
