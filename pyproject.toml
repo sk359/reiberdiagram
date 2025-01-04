@@ -10,6 +10,7 @@ repository = "https://github.com/sk359/reiberdiagram"
 [tool.poetry.dependencies]
 python = "^3.10"
 matplotlib = "^3.10.0"
+coverage = "^7.6.10"
 
 
 [tool.poetry.group.dev.dependencies]

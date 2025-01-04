@@ -20,7 +20,7 @@ def remove_test_images():
                 if file_abs_path == base_file:
                     continue
                 os.remove(file_abs_path)
-    except OSError:
+    except Exception:
         pass
 
 def get_all_files_by_ending(ending: str):

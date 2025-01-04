@@ -6,10 +6,17 @@
 Python module to create an image file for each measured immunoglobulin.
 
 The Reiberdiagram was invented by Hansotto Reiber to visualize reasons for unusual high concentrations of proteins
-in the Cerebrospinal fluid (CSF).[^1][^2] This may be due to problems with the blood brain barrier or antibody
+in the Cerebrospinal fluid (CSF).[^1][^2] This may be due to problems with the blood-brain barrier or antibody
 synthesis in the CSF. The diagram consist of two main curves enclosing the normal range, some additional curves
-labelled 20%, 40% etc., an age-dependent vertical separation line and a mark that highlights the position of the 
-current measurement. The x-axis is the albumin quotient and the y-axis the immunoglobulin quotient.
+labelled 20%, 40% etc., an age-dependent vertical separation line (separates the normal are to the left and a barrier dysfunction on the right side of it) 
+and a mark that highlights the position of the current measurement. 
+The x-axis is the albumin quotient (which is used as a reference protein) and the y-axis the immunoglobulin quotient.
+
+The percentage curves make it possible to estimate the intrathecal fraction, which is the percentage of proteins
+synthesised inside the CSF and not inside the blood. The reference range between the two bold curves is where 99% of patients are located.
+A measurement mark on the left side of the reference range indicates no problem, while on the right side it hints
+a barrier dysfunction. Values above the reference range indicate a synthesis of immunoglobulines inside the central nervous system.
+Values below the reference range indicate a measurement error.
 
 Images can be created for IgA, IgG and IgM
 
