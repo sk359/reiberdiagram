@@ -1,4 +1,4 @@
-![Codecov](https://img.shields.io/codecov/c/github/sk359/reiberdiagram)
+[![codecov](https://codecov.io/github/sk359/reiberdiagram/graph/badge.svg?token=R0EK47V7XL)](https://codecov.io/github/sk359/reiberdiagram)
 
 
 # Reiberdiagram
